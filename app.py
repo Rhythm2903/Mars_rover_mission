@@ -6,7 +6,7 @@ import random
 import time
 import sys
 import traceback
-import pandas as pd  # Leveraged for real-time chart structures
+import pandas as pd  
 import streamlit as st
 from PIL import Image
 from torchvision import transforms
@@ -75,11 +75,11 @@ st.sidebar.subheader("🤖 Hardware Manifest")
 st.session_state.rover_config["compute"] = st.sidebar.selectbox(
     "Select Compute Brain:", list(HARDWARE_CATALOG["compute"].keys()), index=list(HARDWARE_CATALOG["compute"].keys()).index(st.session_state.rover_config["compute"])
 )
-st.session_state.rover_config["sensors"] = st.sidebar.selectbox(
-    "Select Sensor Suite:", list(HARDWARE_CATALOG["sensors"].keys()), index=list(HARDWARE_CATALOG["sensors"].keys()).index(st.session_state.rover_config["sensors"])
+st.sidebar.selectbox(
+    "Select Sensor Suite:", list(HARDWARE_CATALOG["sensors"].keys()), index=list(HARDWARE_CATALOG["sensors"].keys()).index(st.session_state.rover_config["sensors"]), key="sensors_select"
 )
-st.session_state.rover_config["power"] = st.sidebar.selectbox(
-    "Select Power Infrastructure:", list(HARDWARE_CATALOG["power"].keys()), index=list(HARDWARE_CATALOG["power"].keys()).index(st.session_state.rover_config["power"])
+st.sidebar.selectbox(
+    "Select Power Infrastructure:", list(HARDWARE_CATALOG["power"].keys()), index=list(HARDWARE_CATALOG["power"].keys()).index(st.session_state.rover_config["power"]), key="power_select"
 )
 
 st.sidebar.markdown("---")
@@ -171,17 +171,17 @@ with tab2:
         
         st.markdown("---")
         
-        # UPPER HALF: Live Simulation Tracking Monitors
-        display_cols = st.columns([1, 1.2])
-        with display_cols[0]:
-            st.subheader("📹 Live Camera Feed & AI Analysis")
-            camera_placeholder = st.empty()
-            status_placeholder = st.empty()
-            
-        with display_cols[1]:
-            # FIX COMPLETE: Replaced plain text log box with an interactive 2D Radar chart frame
-            st.subheader("🗺️ Real-Time Radar Trajectory Tracking Map")
-            map_placeholder = st.empty()
+        # FIXED: Wrapped inside a master container block to force identical vertical alignment boundaries
+        with st.container():
+            display_cols = st.columns([1, 1.2])
+            with display_cols[0]:
+                st.subheader("📹 Live Camera Feed & AI Analysis")
+                camera_placeholder = st.empty()
+                status_placeholder = st.empty()
+                
+            with display_cols[1]:
+                st.subheader("🗺️ Real-Time Radar Trajectory Tracking Map")
+                map_placeholder = st.empty()
 
         st.markdown("---")
         
@@ -240,11 +240,11 @@ with tab2:
                     battery_history = [100.0]
                     report_text_log = "### 🧭 CHRONOLOGICAL AUTONOMOUS TELEMETRY REPORT\n\n"
                     
-                    # Initialize spatial Pandas dataframe structure starting at landing pad (0,0)
-                    coordinate_tracking_df = pd.DataFrame([{"X-Coordinate Offset": 0, "Y-Coordinate Offset": 0, "Telemetry Indicator": "Landing Pad"}])
-                    map_placeholder.scatter_chart(
-                        coordinate_tracking_df, x="X-Coordinate Offset", y="Y-Coordinate Offset", color="Telemetry Indicator", height=320
-                    )
+                    # FIXED: Initialized path tracking dictionary for connected line chart execution
+                    path_data_dict = {"Y-Coordinate Path Vector": [0]}
+                    coordinate_tracking_df = pd.DataFrame(path_data_dict, index=[0])
+                    coordinate_tracking_df.index.name = "X-Coordinate Path Vector"
+                    map_placeholder.line_chart(coordinate_tracking_df, height=380)
 
                     for step, img_path in enumerate(mission_steps, 1):
                         if not os.path.exists(img_path):
@@ -253,7 +253,9 @@ with tab2:
                         raw_img = Image.open(img_path)
                         if raw_img.mode != 'RGB':
                             raw_img = raw_img.convert('RGB')
-                        camera_placeholder.image(raw_img, caption=f"Scanning Telemetry Asset: {os.path.basename(img_path)}", width=640)
+                        
+                        # Match width dimensions precisely to align with the adjacent tracking chart
+                        camera_placeholder.image(raw_img, caption=f"Scanning Telemetry Asset: {os.path.basename(img_path)}", width=520)
 
                         input_tensor = transform_pipeline(raw_img)
                         input_tensor = input_tensor.unsqueeze(0).to(COMPUTING_DEVICE)
@@ -296,17 +298,22 @@ with tab2:
                             current_x += random.choice([60, 100, 140])
                             current_y += random.choice([40, 90, 130])
                         else:
-                            current_x += random.choice([-100, -60])
-                            current_y += random.choice([10, 25])
+                            # To keep the line chart moving cleanly from left to right, we ensure the X-offset always increments
+                            current_x += random.choice([20, 40])
+                            current_y += random.choice([-50, 30])
                         
-                        # Append the fresh positional coordinate step directly into the dataframe layout
-                        fresh_point = pd.DataFrame([{"X-Coordinate Offset": current_x, "Y-Coordinate Offset": current_y, "Telemetry Indicator": f"Step {step}: {prediction_string}"}])
-                        coordinate_tracking_df = pd.concat([coordinate_tracking_df, fresh_point], ignore_index=True)
-                        
-                        # Animate vector coordinates step-by-step
-                        map_placeholder.scatter_chart(
-                            coordinate_tracking_df, x="X-Coordinate Offset", y="Y-Coordinate Offset", color="Telemetry Indicator", height=320
+                        # FIXED: Append updates using a sequential X-indexed tracking path
+                        path_data_dict["Y-Coordinate Path Vector"].append(current_y)
+                        coordinate_tracking_df = pd.DataFrame(
+                            {"Y-Coordinate Path Vector": path_data_dict["Y-Coordinate Path Vector"]},
+                            index=list(range(0, len(path_data_dict["Y-Coordinate Path Vector"])))
                         )
+                        # Scale indices to match simulated physical travel meters
+                        coordinate_tracking_df.index = coordinate_tracking_df.index * max(35, current_x // step)
+                        coordinate_tracking_df.index.name = "X-Coordinate Path Vector (Meters)"
+                        
+                        # Render the updated path using connected tracking lines
+                        map_placeholder.line_chart(coordinate_tracking_df, height=380)
 
                         report_text_log += f"**Step {step}** | File: {os.path.basename(img_path)} | Detected: {prediction_string} | Action: {action['action_taken']}\n\n"
 
