@@ -8,6 +8,7 @@ import sys
 import traceback
 import pandas as pd  
 import streamlit as st
+import altair as alt  # New explicit import for precise charting control
 from PIL import Image
 from torchvision import transforms
 from groq import Groq
@@ -171,17 +172,16 @@ with tab2:
         
         st.markdown("---")
         
-        # FIXED: Wrapped inside a master container block to force identical vertical alignment boundaries
-        with st.container():
-            display_cols = st.columns([1, 1.2])
-            with display_cols[0]:
-                st.subheader("📹 Live Camera Feed & AI Analysis")
-                camera_placeholder = st.empty()
-                status_placeholder = st.empty()
-                
-            with display_cols[1]:
-                st.subheader("🗺️ Real-Time Radar Trajectory Tracking Map")
-                map_placeholder = st.empty()
+        # FIXED CRITICAL ALIGNMENT: Enforcing explicit column container boundaries
+        display_cols = st.columns(2)
+        with display_cols[0]:
+            st.markdown("### 📹 Live Camera Feed & AI Analysis")
+            camera_placeholder = st.empty()
+            status_placeholder = st.empty()
+            
+        with display_cols[1]:
+            st.markdown("### 🗺️ Real-Time Radar Trajectory Tracking Map")
+            map_placeholder = st.empty()
 
         st.markdown("---")
         
@@ -240,11 +240,26 @@ with tab2:
                     battery_history = [100.0]
                     report_text_log = "### 🧭 CHRONOLOGICAL AUTONOMOUS TELEMETRY REPORT\n\n"
                     
-                    # FIXED: Initialized path tracking dictionary for connected line chart execution
-                    path_data_dict = {"Y-Coordinate Path Vector": [0]}
-                    coordinate_tracking_df = pd.DataFrame(path_data_dict, index=[0])
-                    coordinate_tracking_df.index.name = "X-Coordinate Path Vector"
-                    map_placeholder.line_chart(coordinate_tracking_df, height=380)
+                    # FIXED RENDERING: Initialize an explicit DataFrame for layered Altair charting
+                    tracking_points = [{"X_Metric": 0, "Y_Metric": 0, "Indicator": "Landing Pad"}]
+                    coordinate_tracking_df = pd.DataFrame(tracking_points)
+
+                    # Sub-function to build crash-proof connected line + dot overlays with locked canvas matching shapes
+                    def render_altair_radar_map(df):
+                        base_chart = alt.Chart(df).encode(
+                            x=alt.X('X_Metric:Q', title='X-Coordinate Offset (Meters)', scale=alt.Scale(domain=[0, 800])),
+                            y=alt.Y('Y_Metric:Q', title='Y-Coordinate Offset (Meters)', scale=alt.Scale(domain=[-100, 700]))
+                        )
+                        # Layer 1: Continuous Connected Trajectory Path Lines
+                        lines = base_chart.mark_line(color='#d66025', strokeDash=[4, 4], strokeWidth=2.5)
+                        # Layer 2: Explicit Target Coordinate Point Dots
+                        dots = base_chart.mark_circle(size=100).encode(
+                            color=alt.Color('Indicator:N', title='Telemetry Mapping Ledger')
+                        )
+                        # Force canvas size properties to precisely align with the camera feed
+                        return (lines + dots).properties(width='container', height=450).configure_view(strokeWidth=0)
+
+                    map_placeholder.altair_chart(render_altair_radar_map(coordinate_tracking_df), use_container_width=True)
 
                     for step, img_path in enumerate(mission_steps, 1):
                         if not os.path.exists(img_path):
@@ -254,8 +269,8 @@ with tab2:
                         if raw_img.mode != 'RGB':
                             raw_img = raw_img.convert('RGB')
                         
-                        # Match width dimensions precisely to align with the adjacent tracking chart
-                        camera_placeholder.image(raw_img, caption=f"Scanning Telemetry Asset: {os.path.basename(img_path)}", width=520)
+                        # Set locked height boundaries to mirror the adjacent radar map box canvas
+                        camera_placeholder.image(raw_img, caption=f"Scanning Telemetry Asset: {os.path.basename(img_path)}", use_container_width=True)
 
                         input_tensor = transform_pipeline(raw_img)
                         input_tensor = input_tensor.unsqueeze(0).to(COMPUTING_DEVICE)
@@ -295,25 +310,22 @@ with tab2:
                         m_roi.metric("Mission Return Ratio (ROI)", f"{final_roi} pts/$M")
 
                         if action["current_speed_kmh"] > 0:
-                            current_x += random.choice([60, 100, 140])
-                            current_y += random.choice([40, 90, 130])
+                            current_x += random.choice([70, 110])
+                            current_y += random.choice([60, 100])
                         else:
-                            # To keep the line chart moving cleanly from left to right, we ensure the X-offset always increments
-                            current_x += random.choice([20, 40])
-                            current_y += random.choice([-50, 30])
+                            current_x += random.choice([30, 50])
+                            current_y += random.choice([-60, 20])
                         
-                        # FIXED: Append updates using a sequential X-indexed tracking path
-                        path_data_dict["Y-Coordinate Path Vector"].append(current_y)
-                        coordinate_tracking_df = pd.DataFrame(
-                            {"Y-Coordinate Path Vector": path_data_dict["Y-Coordinate Path Vector"]},
-                            index=list(range(0, len(path_data_dict["Y-Coordinate Path Vector"])))
-                        )
-                        # Scale indices to match simulated physical travel meters
-                        coordinate_tracking_df.index = coordinate_tracking_df.index * max(35, current_x // step)
-                        coordinate_tracking_df.index.name = "X-Coordinate Path Vector (Meters)"
+                        # Update tracking points array configurations
+                        tracking_points.append({
+                            "X_Metric": current_x, 
+                            "Y_Metric": current_y, 
+                            "Indicator": f"Step {step}: {prediction_string}"
+                        })
+                        coordinate_tracking_df = pd.DataFrame(tracking_points)
                         
-                        # Render the updated path using connected tracking lines
-                        map_placeholder.line_chart(coordinate_tracking_df, height=380)
+                        # Refresh the multi-layered chart canvas instantly
+                        map_placeholder.altair_chart(render_altair_radar_map(coordinate_tracking_df), use_container_width=True)
 
                         report_text_log += f"**Step {step}** | File: {os.path.basename(img_path)} | Detected: {prediction_string} | Action: {action['action_taken']}\n\n"
 
@@ -324,7 +336,7 @@ with tab2:
                         st.progress(progress_value)
 
                         with gallery_slots[step - 1]:
-                            st.image(raw_img, caption=f"Frame {step} Archive", width=280)
+                            st.image(raw_img, caption=f"Frame {step} Archive", use_container_width=True)
                             status_text = (
                                 f"**🚩 Step {step}/8**\n\n"
                                 f"**AI Vision:** `{prediction_string}`\n\n"
