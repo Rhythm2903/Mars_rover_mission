@@ -14,7 +14,6 @@ ENV/
 env/
 
 # Data and outputs
-data/
 outputs/
 
 # Logs
