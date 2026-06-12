@@ -1,0 +1,32 @@
+# Python
+*.py[cod]
+__pycache__/
+*.so
+*.egg
+*.egg-info/
+*.env
+.env
+
+# Virtual environment
+maenv/
+venv/
+ENV/
+env/
+
+# Data and outputs
+data/
+outputs/
+
+# Logs
+*.log
+streamlit_debug.log
+streamlit_out.log
+app_error.log
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
