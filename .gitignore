@@ -13,8 +13,8 @@ venv/
 ENV/
 env/
 
-# Data and outputs
-outputs/
+# Data
+#outputs/
 
 # Logs
 *.log
