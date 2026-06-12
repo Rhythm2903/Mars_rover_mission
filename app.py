@@ -6,6 +6,7 @@ import random
 import time
 import sys
 import traceback
+import pandas as pd  # Leveraged for real-time chart structures
 import streamlit as st
 from PIL import Image
 from torchvision import transforms
@@ -178,9 +179,8 @@ with tab2:
             status_placeholder = st.empty()
             
         with display_cols[1]:
-            # VRAM STABILITY FIX: We use an informational status terminal instead of 
-            # rendering active matplotlib subplots inside a fast real-time update container loop.
-            st.subheader("🗺️ Mission Spatial Telemetry Log")
+            # FIX COMPLETE: Replaced plain text log box with an interactive 2D Radar chart frame
+            st.subheader("🗺️ Real-Time Radar Trajectory Tracking Map")
             map_placeholder = st.empty()
 
         st.markdown("---")
@@ -239,7 +239,12 @@ with tab2:
                     science_history = [0]
                     battery_history = [100.0]
                     report_text_log = "### 🧭 CHRONOLOGICAL AUTONOMOUS TELEMETRY REPORT\n\n"
-                    spatial_log_stream = ""
+                    
+                    # Initialize spatial Pandas dataframe structure starting at landing pad (0,0)
+                    coordinate_tracking_df = pd.DataFrame([{"X-Coordinate Offset": 0, "Y-Coordinate Offset": 0, "Telemetry Indicator": "Landing Pad"}])
+                    map_placeholder.scatter_chart(
+                        coordinate_tracking_df, x="X-Coordinate Offset", y="Y-Coordinate Offset", color="Telemetry Indicator", height=320
+                    )
 
                     for step, img_path in enumerate(mission_steps, 1):
                         if not os.path.exists(img_path):
@@ -294,8 +299,14 @@ with tab2:
                             current_x += random.choice([-100, -60])
                             current_y += random.choice([10, 25])
                         
-                        spatial_log_stream = f"📍 Step {step}: Coordinates Updated to X: {current_x}m, Y: {current_y}m\n" + spatial_log_stream
-                        map_placeholder.code(spatial_log_stream, language="markdown")
+                        # Append the fresh positional coordinate step directly into the dataframe layout
+                        fresh_point = pd.DataFrame([{"X-Coordinate Offset": current_x, "Y-Coordinate Offset": current_y, "Telemetry Indicator": f"Step {step}: {prediction_string}"}])
+                        coordinate_tracking_df = pd.concat([coordinate_tracking_df, fresh_point], ignore_index=True)
+                        
+                        # Animate vector coordinates step-by-step
+                        map_placeholder.scatter_chart(
+                            coordinate_tracking_df, x="X-Coordinate Offset", y="Y-Coordinate Offset", color="Telemetry Indicator", height=320
+                        )
 
                         report_text_log += f"**Step {step}** | File: {os.path.basename(img_path)} | Detected: {prediction_string} | Action: {action['action_taken']}\n\n"
 
@@ -320,6 +331,8 @@ with tab2:
                             else:
                                 st.success(status_text)
 
+                        time.sleep(1.0)
+                    
                     final_manifest_content = (
                         f"# MARS MISSION TELEMETRY AUDIT REPORT\n"
                         f"Configuration: {st.session_state.rover_config}\n"
